@@ -1,4 +1,270 @@
-## Websockets
+# WS_comms - English Documentation
+
+The websocket module has been developed symmetrically between the server side and the client side. We will therefore see how to instantiate the server and a client. As for other functionalities, they have the same name and are used in the same way on both sides.
+
+## General Functioning
+
+There are two main objects: **Server** and **Client**. They are built in the same way. Each has a route manager that handles sending and receiving data on associated routes. Route managers, in turn, use two essential objects: **Sender** and **Receiver**. These objects facilitate message reception through a configurable queue system, as well as message sending.
+
+## Initialization
+
+Only the instantiation of objects differs between **Server** and **Client**. Here’s an example for each:
+
+```python
+# Client Instantiation
+ws_client = WSclient(logger=..., host="192.168.0.100", port=8080)
+
+# Server Instantiation
+ws_server = WServer(logger=..., host="0.0.0.0", port=8080)
+```
+
+> Routine Configuration
+> 
+
+Once the websocket client/server is started, it is no longer possible to call functions or execute code. This is why the `add_background_task` method exists. It allows adding, before launching the server, all the routines/functions that should run in parallel with the server or the client. The function passed as a parameter must be **asynchronous**! Their execution relies on pseudo-parallelism, as it uses the asynchronous execution of the **Asyncio** library.
+
+> Startup
+> 
+
+The **Server** or **Client** starts via the `run()` method.
+
+```python
+# Start Client
+ws_client.run()
+
+# Start Server
+ws_server.run()
+```
+
+## RouteManager
+
+> Initialization
+> 
+
+Once our websocket object is created, we will add routes to it, which it will connect to or serve. Each route must be associated with a manager composed of a **Sender** and a **Receiver**. Here’s an example of creating a **RouteManager** and associating it with a sample route:
+
+```python
+# For the client
+# Create the route manager (we provide the client name to the sender to sign the sent messages with this name)
+ws_route_example_manager = WSclientRouteManager(WSreceiver(), WSender("Client"))
+# Associate the manager with a path (a route), using the previously defined ws_client instance
+ws_client.add_route_handler("/route_example", ws_route_example_manager)
+
+# For the server
+# Create the route manager (we provide the server name to the sender to sign the sent messages with this name)
+ws_route_example_manager = WServerRouteManager(WSreceiver(), WSender("Server"))
+# Associate the manager with a path (a route), using the previously defined ws_server instance
+ws_server.add_route_handler("/route_example", ws_route_example_manager)
+```
+
+> Sending Messages
+> 
+
+To send a message using our **RouteManager**, we will use the `sender` attribute, which is an instance of the **Sender** object. See the documentation for this object to use it easily.
+
+One of the features offered by the **Sender**, when on the server side, is the ability to target specific clients for message sending. This function requires providing the **Sender** with the clients to target. The **RouteManager** has a function that allows targeting based on the client’s connection name: **`get_client`**. 
+
+This method takes the client’s name as input and returns the **WebSocket connections** associated with that username. There may be multiple if multiple clients use the same name. If no client name is found, the function returns an empty list.
+
+Example:
+
+```python
+ws_client1 = route_manager.get_client("<target client name 1>")
+ws_client2 = route_manager.get_client("<target client name 2>")
+
+# Send a message to 1 client
+await route_manager.sender.send(
+    WSmsg(sender="the server", msg="message server -> client", data={"data": "any data", 1: "other data"}),
+    clients=ws_client1
+)
+
+# Send a message to 2 clients
+await route_manager.sender.send(
+    WSmsg(sender="the server", msg="message server -> [client1, client2]", data={"data": "any data", 1: "other data"}),
+    clients=[ws_client1, ws_client2]
+)
+```
+
+> Reading Messages
+> 
+
+To read messages using our **RouteManager**, we will use the `receiver` attribute, which is an instance of the **Receiver** object. See the documentation for this object to use it easily.
+
+---
+
+## Receiver
+
+We will now detail the functionalities of the **Receiver**. This object manages the reception of messages received on the WebSocket route being listened to.
+
+The **Receiver** supports **queue-based** operation, allowing all received messages to be stacked until they are read (dequeued). If the queue is not used, it will always return the last received message, meaning that any messages received in between will be lost.
+
+The option **`keep_memory`** is also available, ensuring that the last element remains in the queue or memory. This means that even if the queue is emptied because all messages were read, you can still retrieve the last value without it being deleted.
+
+By default, `use_queue` and `keep_memory` are **False**.
+
+> How to Read Received Messages?
+> 
+
+The `get()` method allows reading received messages while respecting the parameters defined when creating the object (use of queue or not, persistence of elements).
+
+```python
+message = await route_manager.receiver.get()
+```
+
+→ **Asynchronous function**, it must be called with `await`!
+
+> How to Get Queue Size?
+> 
+
+The `get_queue_size()` method allows knowing the number of messages in the queue waiting to be read.
+
+```python
+queue_size = route_manager.receiver.get_queue_size()
+```
+
+→ **Synchronous function**, do not call with `await`!
+
+---
+
+## Sender
+
+The **Sender** only requires a name to function. This name is used to sign messages, allowing the identification of the message source on the WebSocket route.
+
+Example:
+
+```python
+sender = WSender("<sender name>")
+```
+
+> How to Send a Message?
+> 
+
+The `send` function is used to send messages. On the client side, the recipient is directly the server. On the server side, you can choose to whom the message is sent.
+
+When a client connects to the server, it provides its name. At that moment, the server associates the established WebSocket connection with that name. This allows targeting a client using the provided connection name.
+
+- If a **client** is specified as a parameter, the message will only be sent to that client (or a list of clients).
+- If **no client** is specified, the **Sender** will send the message to everyone.
+
+Examples:
+
+```python
+# Send a message from Client to Server
+await route_manager.sender.send(
+    WSmsg(sender="a client", msg="message client -> server", data={"data": "any data", 1: "other data"})
+    # No need to specify the target, the message will automatically be sent to the Server
+)
+            
+# Send a message from Server to All Clients
+await route_manager.sender.send(
+    WSmsg(sender="the server", msg="message server -> clients", data={"data": "any data", 1: "other data"})
+    # If nothing is specified, the message is sent to all clients
+)
+
+# Send a message from Server to a Specific Client
+await route_manager.sender.send(
+    WSmsg(sender="the server", msg="message server -> client", data={"data": "any data", 1: "other data"}),
+    clients=await route_manager.get_client("target client name")  # Send the message only to the client named "target client name" (must use WServerRouteManager object)
+)
+```
+
+→ **Asynchronous function**, it must be called with `await`!
+
+---
+
+## Message
+
+All messages exchanged between the client and the server are of type **`WSmsg`**, which formalizes the exchanged data.
+
+Format:
+
+```python
+{
+    "sender": str,
+    "msg": str,
+    "data": any,
+    "ts": int
+}
+```
+
+- **sender**: The sender’s name.
+- **msg**: The message title, allowing identification of how to process it.
+- **data**: The message content (any JSON-supported format).
+- **ts**: (optional) Timestamp of the sent message.
+
+### Constructors
+
+The **WSmsg** class can be instantiated in several ways, all optimized to make its use easy and intuitive.
+
+- **From a JSON object**:
+  
+  ```python
+  message = WSmsg.from_json(
+      {
+          "sender": "sender_name",
+          "msg": "example",
+          "data": [1, 2, 3],
+          "ts": int
+      }
+  )
+  ```
+
+- **From a text string (JSON in textual format)**:
+  
+  ```python
+  message = WSmsg.from_str(
+      '''
+          "sender": str,
+          "msg": str,
+          "data": [1, 2, 3],
+          "ts": int
+      '''
+  )
+  ```
+
+- **From an aiohttp response**:
+  
+  ```python
+  message = WSmsg.from_aiohttp_message(response: aiohttp.WSMessage)
+  ```
+
+---
+
+> **Preparing a Message for Sending**
+> 
+
+Before sending a message, it must be prepared using the **`prepare`** method. By default, this method converts the message into a string (the default format for sending via WebSocket). However, the message can also be prepared in JSON format by setting the `str_format` parameter to **False**.
+
+During message preparation, the function verifies the different fields and automatically fills the **"ts"** (timestamp) field with the current time, unless a specific timestamp has already been provided.
+
+Examples:
+
+```python
+message = WSmsg.from_json(
+    sender="sender_name",
+    msg="example",
+    data=[1, 2, 3]
+)
+
+str_prepared_message = message.prepare()
+json_prepared_message = message.prepare(False)
+```
+
+---
+
+> **Comparison Operations**
+
+The **binary comparison operators `==` and `!=`** have been redefined for this class. They compare each field of the message one by one.
+
+## **Author**
+
+Project created and maintained by **Florian BARRE**.  
+For questions or contributions, feel free to contact me.
+[My Website](https://florianbarre.fr/) | [My LinkedIn](www.linkedin.com/in/barre-florian) | [My GitHub](https://github.com/Florian-BARRE)
+---
+
+---
+# WS_comms - Documentation Française
 
 Le module websocket a été développé de manière symétrique entre le côté serveur et le côté client. Nous allons donc voir comment instancier le serveur et un client. Pour ce qui est des autres fonctionnalités, elles portent le même nom et s'utilisent de la même manière des deux côtés.
 
@@ -242,6 +508,11 @@ json_prepared_message = message.prepare(False)
 ```
 
 > Opération de comparaison
-> 
 
 Les opérateurs binaires de comparaison `==` et `!=` ont été redéfinit pour cette classe ils comparent un à un chaque champs du message.
+
+## Auteur
+
+Projet créé et maintenu par **Florian BARRE**.  
+Pour toute question ou contribution, n'hésitez pas à me contacter.
+[Mon Site](https://florianbarre.fr/) | [Mon LinkedIn](www.linkedin.com/in/barre-florian) | [Mon GitHub](https://github.com/Florian-BARRE)
