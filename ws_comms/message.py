@@ -4,6 +4,9 @@ import aiohttp
 import json
 import time
 
+# Third-party library imports
+from loggerplusplus import Logger
+
 
 # ====== Class Part ======
 class WSmsg:
@@ -18,12 +21,16 @@ class WSmsg:
     """
 
     def __init__(
-            self, sender: str = "", msg: str = "", data=None, ts: int = -1
+            self,
+            sender: str = "", msg: str = "", data: any = None, ts: int = -1,
+            logger: Logger = Logger(identifier="WSmsg", follow_logger_manager_rules=True)
     ) -> None:
-        self.sender = sender
-        self.msg = msg
-        self.data = data
-        self.ts = ts
+        self.logger: Logger = logger
+
+        self.sender: str = sender
+        self.msg: str = msg
+        self.data: any = data
+        self.ts: int = ts
 
     @classmethod
     def from_json(cls, msg: dict):
@@ -47,7 +54,7 @@ class WSmsg:
         :return:
         """
         msg = json.loads(msg)
-        return self.from_json(msg)
+        return cls.from_json(msg)
 
     @classmethod
     def from_aiohttp_message(cls, msg: aiohttp.WSMessage):
@@ -87,7 +94,7 @@ class WSmsg:
             "ts": self.ts,
         }
 
-    def prepare(self, str_format=True) -> str or dict:
+    def prepare(self, str_format=True) -> str | dict:
         """
         Prepare the message to be sent, it could be str or json format (str by default).
         * It checks if the sender value is set.
@@ -97,12 +104,13 @@ class WSmsg:
         :return:
         """
         if self.sender == "":
+            self.logger.error("Sender value is None. PREPARATION FAILED.")
             raise ValueError("Sender value is None. PREPARATION FAILED.")
 
         if self.msg == "":
-            print("Warning: msg is not set.")
+            self.logger.warning("msg is not set.")
         if self.data is None:
-            print("Warning: data is not set.")
+            self.logger.warning("data is not set.")
 
         if self.ts == -1:
             self.ts = time.time()
@@ -114,7 +122,13 @@ class WSmsg:
     def __str__(self) -> str:
         return f"(sender: {self.sender}, msg: {self.msg}, data: {self.data}, ts: {self.ts})"
 
-    def __eq__(self, other) -> bool:
+    def __repr__(self) -> str:
+        return f"WSmsg(sender={self.sender}, msg={self.msg}, data={self.data}, ts={self.ts})"
+
+    def __format__(self, format_spec) -> str:
+        return self.__str__()
+
+    def __eq__(self, other: any) -> bool:
         if not isinstance(other, WSmsg):
             return NotImplemented
         return (
@@ -123,3 +137,6 @@ class WSmsg:
                 and self.data == other.data
                 and self.ts == other.ts
         )
+
+    def __ne__(self, other: any):
+        return not self.__eq__(other)

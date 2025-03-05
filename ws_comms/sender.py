@@ -28,21 +28,21 @@ class WSender:
         """
         self.logger: Logger = logger
         self.name: str = name
-        self.__route_manager_clients: list[aiohttp.web_ws.WebSocketResponse] = []
+        self.__route_manager_clients: list = []
 
         self.logger.info(f"Initialized with name: {self.name}")
 
     def update_clients(
             self,
-            clients: aiohttp.web_ws.WebSocketResponse | list[aiohttp.web_ws.WebSocketResponse]
+            clients
     ) -> None:
         if not isinstance(clients, list):
-            self.__route_manager_clients: list[aiohttp.web_ws.WebSocketResponse] = [clients]
+            self.__route_manager_clients: list = [clients]
         else:
-            self.__route_manager_clients: list[aiohttp.web_ws.WebSocketResponse] = clients
+            self.__route_manager_clients: list = clients
         self.logger.debug(f"Clients list updated: {self.__route_manager_clients}")
 
-    async def get_clients(self, wait_clients: bool = False) -> list[aiohttp.web_ws.WebSocketResponse]:
+    async def get_clients(self, wait_clients: bool = False) -> list:
         while len(self.__route_manager_clients) == 0 and wait_clients:
             await asyncio.sleep(0.5)
             self.logger.debug("No clients ...")
@@ -52,7 +52,7 @@ class WSender:
     async def send(
             self,
             msg: WSmsg,
-            clients: aiohttp.web_ws.WebSocketResponse | list[aiohttp.web_ws.WebSocketResponse] | None = None,
+            clients=None,
             wait_client: bool = False
     ) -> bool:
         """

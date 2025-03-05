@@ -52,16 +52,18 @@ class WSclient:
         self.logger.info(f"WSclient [{route}] started, route url: [{self.__get_url(route)}]")
         while True:
             try:
-                self.logger.info(f"WSclient [{route}] try to connect server...")
+                ws_url = f"{self.__get_url(route)}?sender={handler.sender.name}"
+                self.logger.info(f"WSclient [{ws_url}] try to connect server...")
+
                 async with aiohttp.ClientSession() as session:
-                    async with session.ws_connect(
-                            f"{self.__get_url(route)}?sender={handler.sender.name}"
-                    ) as ws:
+                    async with session.ws_connect(ws_url) as ws:
                         self.logger.info(f"WSclient [{route}] connected !")
                         handler.set_ws(ws)
                         await handler.routine()
+
             except Exception as error:
                 self.logger.error(f"WSclient [{route}] error: ({error}), try to reconnect...")
+                await asyncio.sleep(0.5)  # Avoid to spam the server with connection requests
 
     def add_route_handler(
             self, route: str, route_manager: WSclientRouteManager

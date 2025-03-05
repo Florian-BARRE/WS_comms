@@ -73,7 +73,7 @@ class WServerRouteManager:
         # Add the new client associated to the source value
         self.clients[client_name].append(client)
 
-        self.logger.info(f"New client added: {client_name}")
+        self.logger.debug(f"New client added: {client_name}")
         return client_name
 
     def get_client(self, name: str) -> list[aiohttp.web_ws.WebSocketResponse]:

@@ -4,6 +4,7 @@ from aiohttp import web
 import asyncio
 import signal
 import time
+import sys
 
 # Third-party library imports
 from loggerplusplus import Logger
@@ -107,10 +108,6 @@ class WServer:
             task.cancel()
         await asyncio.gather(*tasks, return_exceptions=True)
 
-        # Stop asyncio loop
-        asyncio.get_event_loop().close()
-        self._app._loop.close()
-
     def add_background_task(
             self, task: callable, *args, name: str = "", **kwargs
     ) -> None:
@@ -138,14 +135,28 @@ class WServer:
 
     def run(self) -> None:
         loop = asyncio.get_event_loop()
+        asyncio.set_event_loop(loop)  # Activate the loop
 
-        def handle_exit():
+        async def handle_exit():
             self.logger.info("WServer stopped by user request.")
-            asyncio.create_task(self.stop_server())
-            loop.close()
+            await self.stop_server()
+            loop.stop()
 
-        # TODO: check why this is not working, version problem ?
-        # loop.add_signal_handler(signal.SIGINT, handle_exit)
+        async def wait_for_exit():
+            try:
+                while True:
+                    await asyncio.sleep(1)
+            except asyncio.CancelledError:
+                await handle_exit()
+
+        # On Unix systems, we add a signal handler for SIGINT
+        if sys.platform not in ["win32", "win64", "win", "windows"]:
+            loop.add_signal_handler(signal.SIGINT, lambda: asyncio.create_task(handle_exit()))
+        else:
+            # On Windows, schedule the wait_for_exit task during application startup
+            async def startup(app):
+                app['wait_for_exit_task'] = asyncio.create_task(wait_for_exit())
+            self._app.on_startup.append(startup)
 
         try:
             self.logger.info(f"WServer started, url: [ws://{self.__host}:{self.__port}]")
@@ -162,8 +173,11 @@ class WServer:
             #         LogLevels.DEBUG,
             #     )
             web.run_app(self._app, host=self.__host, port=self.__port)
+        except KeyboardInterrupt:
+            loop.run_until_complete(handle_exit())
         except Exception as error:
-            self.logger.error(f"WServer error: ({error}), try to restart...")
+            self.logger.error(f"WServer error: ({error}), trying to restart...")
             time.sleep(5)
         finally:
+            loop.run_until_complete(loop.shutdown_asyncgens())
             loop.close()
