@@ -25,24 +25,26 @@ class WServer:
 
     def __init__(
             self,
-            logger: Logger,
             host: str,
             port: int,
-            ping_pong_clients_interval: int = None,
+            # ping_pong_clients_interval: int = None,
+            logger: Logger = Logger(identifier="WServer", follow_logger_manager_rules=True)
     ) -> None:
-        self.__logger = logger
+        self.logger: Logger = logger
 
-        self.__host = host
-        self.__port = port
+        self.__host: str = host
+        self.__port: int = port
 
         # self.__ping_pong_clients_interval = ping_pong_clients_interval
 
         self._app = web.Application(debug=True)
 
         # Keep access on the route manager
-        self.__route_managers = {}
+        self.__route_managers: dict[str:WServerRouteManager] = {}
         # Keep access on the background tasks
-        self.__background_tasks = set()
+        self.__background_tasks: set[asyncio.coroutine] = set()
+
+        self.logger.info(f"Initialized with host: {self.__host}, port: {self.__port}")
 
     # async def __ping_pong_clients_task(self, interval: int):
     #     while True:
@@ -82,7 +84,7 @@ class WServer:
         :param route_manager:
         :return:
         """
-        self.__logger.debug(f"New route handler added [{route}], route url: [ws://{self.__host}:{self.__port}{route}]")
+        self.logger.info(f"New route handler added [{route}], route url: [ws://{self.__host}:{self.__port}{route}]")
         self.__route_managers[route] = route_manager
         self._app.router.add_get(route, route_manager.routine)
 
@@ -91,12 +93,12 @@ class WServer:
         Stop the server and all the background tasks.
         :return:
         """
-        self.__logger.warning("Received exit signal...")
+        self.logger.warning("Received exit signal...")
 
         # Close all the ws connections for all the routes
-        self.__logger.info("Closing all connections...")
+        self.logger.info("Closing all connections...")
         for route, manager in self.__route_managers.items():
-            self.__logger.debug(f"Closing all connections for [{route}] route.")
+            self.logger.debug(f"Closing all connections for [{route}] route.")
             await manager.close_all_connections()
 
         # End all the background tasks
@@ -131,14 +133,14 @@ class WServer:
             app[name] = task_instance
             self.__background_tasks.add(task_instance)
 
-        self.__logger.debug(f"New background task added [{name}]")
+        self.logger.debug(f"New background task added [{name}]")
         self._app.on_startup.append(background_task)
 
     def run(self) -> None:
         loop = asyncio.get_event_loop()
 
         def handle_exit():
-            self.__logger.info("WServer stopped by user request.")
+            self.logger.info("WServer stopped by user request.")
             asyncio.create_task(self.stop_server())
             loop.close()
 
@@ -146,7 +148,7 @@ class WServer:
         # loop.add_signal_handler(signal.SIGINT, handle_exit)
 
         try:
-            self.__logger.info(f"WServer started, url: [ws://{self.__host}:{self.__port}]")
+            self.logger.info(f"WServer started, url: [ws://{self.__host}:{self.__port}]")
             # Ping pong mode does not work for now, if you want to use it,
             # you have to remove the non-unique client identifier or adapt
             # current function to handle multiple clients with the same name
@@ -161,7 +163,7 @@ class WServer:
             #     )
             web.run_app(self._app, host=self.__host, port=self.__port)
         except Exception as error:
-            self.__logger.error(f"WServer error: ({error}), try to restart...")
+            self.logger.error(f"WServer error: ({error}), try to restart...")
             time.sleep(5)
         finally:
             loop.close()

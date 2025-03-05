@@ -20,13 +20,20 @@ class WSclient:
     * It can receive messages from the server.
     """
 
-    def __init__(self, host: str, port: int, logger: Logger) -> None:
-        self.__host = host
-        self.__port = port
+    def __init__(
+            self,
+            host: str,
+            port: int,
+            logger: Logger = Logger(identifier="WSclient", follow_logger_manager_rules=True)
+    ) -> None:
+        self.logger: Logger = logger
 
-        self.logger = logger
+        self.__host: str = host
+        self.__port: int = port
 
-        self.tasks = []
+        self.tasks: list[asyncio.coroutine] = []
+
+        self.logger.info(f"Initialized with host: {self.__host}, port: {self.__port}")
 
     def __get_url(self, route: str) -> str:
         return f"ws://{self.__host}:{self.__port}{route}"
@@ -34,7 +41,7 @@ class WSclient:
     async def __run_tasks(self) -> None:
         await asyncio.gather(*self.tasks)
 
-    async def __route_handler_routine(self, route, handler):
+    async def __route_handler_routine(self, route: str, handler: WSclientRouteManager):
         """
         This function is a coroutine that connects to a websocket server and binds a handler to it.
         It handles connection errors and try to reconnect to the server.

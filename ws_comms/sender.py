@@ -1,6 +1,10 @@
 # ====== Imports ======
 # Standard Library Imports
+import aiohttp
 import asyncio
+
+# Third-party library imports
+from loggerplusplus import Logger
 
 # Internal project imports
 from ws_comms.message import WSmsg
@@ -12,29 +16,45 @@ class WSender:
     Every sent messages are marked with the source value of the sender (this machine name).
     """
 
-    def __init__(self, name: str) -> None:
+    def __init__(
+            self,
+            name: str,
+            logger: Logger = Logger(identifier="WSender", follow_logger_manager_rules=True)
+    ) -> None:
         """
         Initialize the sender with its name value.
         This value is used to identify the sender.
         :param name:
         """
-        self.name = name
+        self.logger: Logger = logger
+        self.name: str = name
+        self.__route_manager_clients: list[aiohttp.web_ws.WebSocketResponse] = []
 
-        self.__route_manager_clients = []
+        self.logger.info(f"Initialized with name: {self.name}")
 
-    def update_clients(self, clients) -> None:
+    def update_clients(
+            self,
+            clients: aiohttp.web_ws.WebSocketResponse | list[aiohttp.web_ws.WebSocketResponse]
+    ) -> None:
         if not isinstance(clients, list):
-            self.__route_manager_clients = [clients]
+            self.__route_manager_clients: list[aiohttp.web_ws.WebSocketResponse] = [clients]
         else:
-            self.__route_manager_clients = clients
+            self.__route_manager_clients: list[aiohttp.web_ws.WebSocketResponse] = clients
+        self.logger.debug(f"Clients list updated: {self.__route_manager_clients}")
 
-    async def get_clients(self, wait_clients: bool = False) -> list:
+    async def get_clients(self, wait_clients: bool = False) -> list[aiohttp.web_ws.WebSocketResponse]:
         while len(self.__route_manager_clients) == 0 and wait_clients:
             await asyncio.sleep(0.5)
-            # print("No clients ...")
+            self.logger.debug("No clients ...")
+
         return self.__route_manager_clients
 
-    async def send(self, msg: WSmsg, clients=None, wait_client: bool = False) -> bool:
+    async def send(
+            self,
+            msg: WSmsg,
+            clients: aiohttp.web_ws.WebSocketResponse | list[aiohttp.web_ws.WebSocketResponse] | None = None,
+            wait_client: bool = False
+    ) -> bool:
         """
         Send a message to one or multiple clients.
         :param msg:
@@ -50,7 +70,7 @@ class WSender:
             clients = await self.get_clients(wait_client)
 
         if clients is None:
-            # print("Error, no clients found.")
+            self.logger.warning("Can't send message: no clients found.")
             return False
 
         if not isinstance(clients, list):
@@ -59,7 +79,11 @@ class WSender:
         for client in clients:
             try:
                 await client.send_str(msg.prepare())
-                return True
+                self.logger.debug(f"Message sent: {msg}, to client: {client}")
+
             except Exception as error:
-                print(f"Error during sending message: {error}")
+                self.logger.error(f"Error during sending message: {error}")
                 return False
+
+        self.logger.info(f"Message sent: {msg}, to {len(clients)} clients.")
+        return True
