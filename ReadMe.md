@@ -230,28 +230,6 @@ The **WSmsg** class can be instantiated in several ways, all optimized to make i
 
 ---
 
-> **Preparing a Message for Sending**
-> 
-
-Before sending a message, it must be prepared using the **`prepare`** method. By default, this method converts the message into a string (the default format for sending via WebSocket). However, the message can also be prepared in JSON format by setting the `str_format` parameter to **False**.
-
-During message preparation, the function verifies the different fields and automatically fills the **"ts"** (timestamp) field with the current time, unless a specific timestamp has already been provided.
-
-Examples:
-
-```python
-message = WSmsg.from_json(
-    sender="sender_name",
-    msg="example",
-    data=[1, 2, 3]
-)
-
-str_prepared_message = message.prepare()
-json_prepared_message = message.prepare(False)
-```
-
----
-
 > **Comparison Operations**
 
 The **binary comparison operators `==` and `!=`** have been redefined for this class. They compare each field of the message one by one.
@@ -487,25 +465,6 @@ Cette classe peut être instanciée de plusieurs manières, toutes optimisées p
     ```python
     message = WSmsg.from_aiohttp_message(response: aiohttp.WSMessage)
     ```
-    
-
-> Préparer un message pour l’envoyer
-> 
-
-Avant d’envoyer un message, il faut le préparer à l’aide de la méthode `prepare`. Par défaut, cette méthode transforme le message en chaîne de caractères (le type de base pour l’envoi via websocket). Cependant, on peut préparer le message au format JSON en réglant le paramètre `str_format` sur False. La préparation de la requête vérifie les différents champs du message et complète le champ “ts” avec la date actuelle, sauf si un ts précis a été renseigné au préalable.
-
-Exemples:
-
-```python
-message = WSmsg.from_json(
-	sender="expediteur",
-	msg="exemple",
-	data=[1, 2, 3]
-)
-
-str_prepared_message = message.prepare()
-json_prepared_message = message.prepare(False)
-```
 
 > Opération de comparaison
 
