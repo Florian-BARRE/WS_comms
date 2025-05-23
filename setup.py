@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name="wscomms",
-    version="0.1.4",
+    version="0.1.6",
     author="Florian BARRE",
     author_email="florian.barre78@gmail.com",
     description="A WebSocket module enabling real-time communication between a server and multiple clients through a symmetric API, ensuring a consistent and easy-to-use interface on both ends.",
@@ -15,7 +15,7 @@ setup(
         "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
         "Operating System :: OS Independent",
     ],
-    python_requires=">=3.12",
+    python_requires=">=3.10",
     install_requires=[
         "aiohappyeyeballs>=2.4.4",
         "aiohttp>=3.11.11",

@@ -67,5 +67,18 @@ if __name__ == "__main__":
         task_logger
     )
 
+
+    # Add a shutdown task to clean up resources
+    def sync_shutdown_task():
+        print("[SYNC FUNCTION] Shutting down server...")
+
+
+    async def async_shutdown_task():
+        print("[ASYNC FUNCTION] Shutting down server...")
+
+
+    ws_server.add_shutdown_task(sync_shutdown_task)
+    ws_server.add_shutdown_task(async_shutdown_task)
+
     # Start the WebSocket server
     ws_server.run()

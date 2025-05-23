@@ -2,6 +2,7 @@
 # Standard Library Imports
 from aiohttp import web
 import asyncio
+import inspect
 import signal
 import time
 import sys
@@ -44,6 +45,9 @@ class WServer:
         self.__route_managers: dict[str:WServerRouteManager] = {}
         # Keep access on the background tasks
         self.__background_tasks: set[asyncio.coroutine] = set()
+
+        # Store all functions to call when the stop signal is received
+        self.__shutdown_tasks: list[callable] = []
 
         self.logger.info(f"Initialized with host: {self.__host}, port: {self.__port}")
 
@@ -89,10 +93,22 @@ class WServer:
         self.__route_managers[route] = route_manager
         self._app.router.add_get(route, route_manager.routine)
 
+    def add_shutdown_task(self, task: callable) -> None:
+        """
+        Add a new shutdown task to the server. It is useful to execute task in parallel with the server.
+        * The task have to be a coroutine (async function).
+        * To create the task we add a key in the app dictionary with the name of the task.
+        * The task will be created when the server will start.
+        * Format: add_background_task(func, (optional) func_params, (optional) name)
+        :param task:
+        :return:
+        """
+        self.logger.debug(f"New shutdown task added [{task.__name__}]")
+        self.__shutdown_tasks.append(task)
+
     async def stop_server(self):
         """
         Stop the server and all the background tasks.
-        :return:
         """
         self.logger.warning("Received exit signal...")
 
@@ -102,11 +118,36 @@ class WServer:
             self.logger.debug(f"Closing all connections for [{route}] route.")
             await manager.close_all_connections()
 
-        # End all the background tasks
-        tasks = [t for t in asyncio.all_tasks() if t is not asyncio.current_task()]
+        # Cancel all background tasks except the current one
+        current_task = asyncio.current_task()
+        tasks = [t for t in asyncio.all_tasks() if t is not current_task]
+        self.logger.info(f"Cancelling {len(tasks)} background tasks...")
+
         for task in tasks:
             task.cancel()
-        await asyncio.gather(*tasks, return_exceptions=True)
+
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+        for task, result in zip(tasks, results):
+            if isinstance(result, Exception) and not isinstance(result, asyncio.CancelledError):
+                self.logger.warning(
+                    f"Task {task.get_name() if hasattr(task, 'get_name') else str(task)} raised: {result}")
+
+        # Execute shutdown hooks
+        self.logger.info("Running shutdown tasks...")
+        for shutdown_task in self.__shutdown_tasks:
+            try:
+                if inspect.iscoroutinefunction(shutdown_task):
+                    await shutdown_task()
+                else:
+                    shutdown_task()
+            except Exception as error:
+                self.logger.error(
+                    f"Error in shutdown task [{getattr(shutdown_task, '__name__', str(shutdown_task))}]: {error}")
+            else:
+                self.logger.debug(
+                    f"Shutdown task [{getattr(shutdown_task, '__name__', str(shutdown_task))}] completed.")
+
+        self.logger.info("Shutdown complete.")
 
     def add_background_task(
             self, task: callable, *args, name: str = "", **kwargs
@@ -156,6 +197,7 @@ class WServer:
             # On Windows, schedule the wait_for_exit task during application startup
             async def startup(app):
                 app['wait_for_exit_task'] = asyncio.create_task(wait_for_exit())
+
             self._app.on_startup.append(startup)
 
         try:
