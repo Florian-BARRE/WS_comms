@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name="wscomms",
-    version="0.1.6",
+    version="0.1.5",
     author="Florian BARRE",
     author_email="florian.barre78@gmail.com",
     description="A WebSocket module enabling real-time communication between a server and multiple clients through a symmetric API, ensuring a consistent and easy-to-use interface on both ends.",
